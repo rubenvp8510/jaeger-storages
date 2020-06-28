@@ -334,7 +334,7 @@ func (w *Writer) loop() {
 }
 
 func (w *Writer) start() {
-	w.mainTable.CreateIfNotExist(true)
+	w.mainTable.CreateIfNotExist(false)
 	blockIndex := int(time.Now().UnixNano() / periodPerBlock)
 	println("Partition: ", blockIndex)
 	w.partitions = make(map[int]*Table)
@@ -358,7 +358,7 @@ func (w *Writer) start() {
 }
 
 func (w *Writer) WriteSpan(span *model.Span) error {
-	blockIndex := int(span.StartTime.UnixNano() / periodPerBlock)
+	/*blockIndex := int(span.StartTime.UnixNano() / periodPerBlock)
 	w.blocksMtx.RLock()
 	block, ok := w.partitions[blockIndex]
 	w.blocksMtx.RUnlock()
@@ -375,6 +375,6 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		} else {
 			return fmt.Errorf("droping span block: %d too old: %s", blockIndex, span.StartTime.String())
 		}
-	}
-	return block.WriteSpan(span)
+	}*/
+	return w.mainTable.WriteSpan(span)
 }
