@@ -17,7 +17,11 @@ type Factory struct {
 }
 
 func NewFactory() *Factory {
-	return &Factory{}
+	return &Factory{
+		options:Options{
+			Host:"http://localhost:9000",
+		},
+	}
 }
 
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
@@ -30,9 +34,6 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 func (f *Factory) Initialize(metricsFactory metrics.Factory, zapLogger *zap.Logger) error {
-        if f.options.Host == "" {
-           f.options.Host = "http://localhost:9000"
-        }
 	client, err := NewQuestDBRest(f.options.Host)
 	f.questDB = client
 
