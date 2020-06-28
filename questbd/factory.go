@@ -30,6 +30,9 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 func (f *Factory) Initialize(metricsFactory metrics.Factory, zapLogger *zap.Logger) error {
+        if f.options.Host == "" {
+           f.options.Host = "http://localhost:9000"
+        }
 	client, err := NewQuestDBRest(f.options.Host)
 	f.questDB = client
 
