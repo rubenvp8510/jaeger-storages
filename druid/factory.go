@@ -1,7 +1,9 @@
-package questbd
+package druid
 
 import (
 	"flag"
+	"github.com/Shopify/sarama"
+	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/spf13/viper"
@@ -9,52 +11,44 @@ import (
 	"go.uber.org/zap"
 )
 
-
 type Factory struct {
 	options Options
-	questDB *QuestDBRest
-	writer *Writer
+	producer.Builder
+	producer   sarama.AsyncProducer
+
 }
 
 func NewFactory() *Factory {
-	return &Factory{
-		options:Options{
-			Host:"http://localhost:9000",
-		},
-	}
+	return &Factory{}
 }
 
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.options.AddFlags(flagSet)
 }
-
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.options.InitFromViper(v)
+	f.Builder = &f.options.Config
 }
 
-func (f *Factory) Initialize(metricsFactory metrics.Factory, zapLogger *zap.Logger) error {
-	client, err := NewQuestDBRest(f.options.Host)
-	f.questDB = client
 
+func (f *Factory) Initialize(metricsFactory metrics.Factory, zapLogger *zap.Logger) error {
+	p, err := f.NewProducer()
 	if err != nil {
 		return err
 	}
-
-	f.writer = NewWriter(f.questDB)
-	f.writer.start()
-
+	f.producer = p
 	return nil
 }
 
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return f.writer, nil
+	reader, err := NewReader("http://localhost:8888")
+	return reader, err
 }
 
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return f.writer, nil
+	return NewSpanWriter(f.producer, f.options.Topic), nil
 }
-
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, nil
 }

@@ -1,12 +1,12 @@
 package questbd
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/jaegertracing/jaeger/model"
-	"time"
-
 	"strings"
 	"sync"
+	"time"
 )
 
 var baseColumns = []string{
@@ -15,14 +15,22 @@ var baseColumns = []string{
 
 var periodPerBlock = time.Second.Nanoseconds() * 60
 
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 const (
-	tagPrefix          = "__tag__prefix"
+	tagPrefix = "__tag__prefix"
 )
 
 type Table struct {
+	sync.RWMutex
 	questDB *QuestDBRest
 	name    string
 	lock    sync.Mutex
+	buffer  *bytes.Buffer
 }
 
 func (t *Table) Columns() ([]string, error) {
@@ -148,6 +156,51 @@ func (t *Table) Truncate() error {
 	return nil
 }
 
+func (t *Table) Flush() {
+	t.Lock()
+	oldBuf := t.buffer
+	t.buffer = bufPool.Get().(*bytes.Buffer)
+	t.buffer.Reset()
+	t.Unlock()
+	go t.writeToStorage(oldBuf)
+}
+
+func (t *Table) writeToStorage(buf *bytes.Buffer) {
+
+	content := string(buf.Bytes())
+	items := strings.Split(content, "\n")
+	for _, item := range items {
+		item_parts := strings.Split(item, ";")
+		tagsKeys := strings.Split(item_parts[0], ",")
+		values := item_parts[1]
+
+		baseColumnsCount := len(baseColumns)
+		columns := make([]string, baseColumnsCount+len(tagsKeys))
+
+		for i, col := range baseColumns {
+			columns[i] = col
+		}
+		for i := 0; i < len(tagsKeys); i ++ {
+			columns[baseColumnsCount+i] = tagsKeys[i]
+		}
+		t.lock.Lock()
+		err := t.updateColumns(tagsKeys)
+		if err != nil {
+			t.lock.Unlock()
+			continue
+		}
+
+		query := fmt.Sprintf("INSERT INTO %s ( %s ) VALUES ( %s )",
+			t.name, strings.Join(columns, ","), values)
+
+		_, err = t.questDB.Exec(query)
+		t.lock.Unlock()
+	}
+
+	buf.Reset()
+	bufPool.Put(buf)
+}
+
 func (t *Table) WriteSpan(span *model.Span) error {
 
 	// deduplication.
@@ -187,28 +240,15 @@ func (t *Table) WriteSpan(span *model.Span) error {
 		escape(serializedSpan),
 	)
 	values = append(values, tagValues...)
-	baseColumnsCount := len(baseColumns)
-	columns := make([]string, baseColumnsCount+len(tagsKeys))
-
-	for i, col := range baseColumns {
-		columns[i] = col
-	}
-	for i := 0; i < len(tagsKeys); i ++ {
-		columns[baseColumnsCount+i] = tagsKeys[i]
-	}
-
-	t.lock.Lock()
-	defer t.lock.Unlock()
-	err = t.updateColumns(tagsKeys)
+	buff := []byte(fmt.Sprintf("%s;%s\n", strings.Join(tagsKeys, ","), strings.Join(values, ",")))
+	t.Lock()
+	_, err = t.buffer.Write(buff)
 	if err != nil {
+		t.Unlock()
 		return err
 	}
-
-	query := fmt.Sprintf("INSERT INTO %s ( %s ) VALUES ( %s )",
-		t.name, strings.Join(columns, ","), strings.Join(values, ","))
-
-	_, err = t.questDB.Exec(query)
-	return err
+	t.Unlock()
+	return nil
 }
 
 func (t *Table) Exist() (bool, error) {
@@ -243,138 +283,4 @@ func (t *Table) InsertFrom(table string) error {
 	println(query)
 	_, err := t.questDB.Exec(query)
 	return err
-}
-
-type Writer struct {
-	questDB         *QuestDBRest
-	mainTable       *Table
-	partitions      map[int]*Table
-	minWritableTime *time.Time
-	blocksMtx       sync.RWMutex
-	nextBlock       int
-	close           chan struct{}
-}
-
-func NewWriter(questDB *QuestDBRest) *Writer {
-	writer := &Writer{
-		questDB: questDB,
-		mainTable: &Table{
-			name:    "traces",
-			questDB: questDB,
-		},
-	}
-	return writer
-}
-
-func (w *Writer) sortAndTransfer() {
-
-	var partition *Table
-	w.blocksMtx.Lock()
-	nextBlock := int(time.Now().UnixNano() / periodPerBlock)
-
-	println(w.nextBlock)
-	partition = w.partitions[w.nextBlock]
-	fmt.Println("Partition old new:", partition)
-
-	delete(w.partitions, w.nextBlock)
-	w.nextBlock = nextBlock
-	fmt.Println("Partition new:", nextBlock)
-
-	if _, ok := w.partitions[nextBlock]; !ok {
-		table :=  &Table{
-			name:    fmt.Sprintf("partition_%d", nextBlock),
-			questDB: w.questDB,
-		}
-		println("creating")
-		table.CreateIfNotExist(false)
-		w.partitions[nextBlock] = table
-
-	}
-	w.blocksMtx.Unlock()
-
-	w.mainTable.lock.Lock()
-	defer w.mainTable.lock.Unlock()
-
-	partition.lock.Lock()
-	defer partition.lock.Unlock()
-
-	// Need to know what columns need to be added
-	columns, _ := partition.Columns()
-	err := w.mainTable.updateColumns(columns)
-	if err != nil {
-		println(err.Error())
-		return
-	}
-	err = w.mainTable.InsertFrom(partition.name)
-	if err != nil {
-		partition.Drop()
-		println(err.Error())
-		return
-	}
-
-	err = partition.Drop()
-	if err != nil {
-		println(err.Error())
-		return
-	}
-}
-
-func (w *Writer) loop() {
-	copyTicker := time.NewTicker(60 * time.Second)
-	defer copyTicker.Stop()
-
-	for {
-		select {
-		case <-copyTicker.C:
-			w.sortAndTransfer()
-		case <-w.close:
-			return
-		}
-	}
-}
-
-func (w *Writer) start() {
-	w.mainTable.CreateIfNotExist(false)
-	blockIndex := int(time.Now().UnixNano() / periodPerBlock)
-	println("Partition: ", blockIndex)
-	w.partitions = make(map[int]*Table)
-	w.partitions[blockIndex] = &Table{
-		name:    fmt.Sprintf("partition_%d", blockIndex),
-		questDB: w.questDB,
-	}
-	err := w.partitions[blockIndex].CreateIfNotExist(false)
-	if err != nil {
-		println(err)
-	}
-	err = w.partitions[blockIndex].Truncate()
-	if err != nil {
-		println(err)
-	}
-	w.nextBlock = blockIndex
-	w.minWritableTime = nil
-	w.close = make(chan struct{})
-	go w.loop()
-
-}
-
-func (w *Writer) WriteSpan(span *model.Span) error {
-	/*blockIndex := int(span.StartTime.UnixNano() / periodPerBlock)
-	w.blocksMtx.RLock()
-	block, ok := w.partitions[blockIndex]
-	w.blocksMtx.RUnlock()
-	if !ok {
-		if blockIndex > w.nextBlock {
-			w.blocksMtx.Lock()
-			block = &Table{
-				name:    fmt.Sprintf("partition_%d", blockIndex),
-				questDB: w.questDB,
-			}
-			w.partitions[blockIndex] = block
-			w.partitions[blockIndex].CreateIfNotExist(false)
-			w.blocksMtx.Unlock()
-		} else {
-			return fmt.Errorf("droping span block: %d too old: %s", blockIndex, span.StartTime.String())
-		}
-	}*/
-	return w.mainTable.WriteSpan(span)
 }

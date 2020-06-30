@@ -14,20 +14,17 @@ var (
 	ErrTraceNotFound = errors.New("trace not found")
 )
 
-type Reader struct {
-	questDB *QuestDBRest
-}
 
 const getServicesQuery = "SELECT DISTINCT service_name from traces"
 const getOperationsQuery = "SELECT DISTINCT operation_name from traces"
 
-func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (w *Writer) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 
 	return nil, nil
 }
 
-func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
-	rows, err := r.questDB.Query(getServicesQuery)
+func (w *Writer) GetServices(ctx context.Context) ([]string, error) {
+	rows, err := w.questDB.Query(getServicesQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +41,8 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 
 }
 
-func (r *Reader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-	rows, err := r.questDB.Query(getOperationsQuery)
+func (w *Writer) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+	rows, err := w.questDB.Query(getOperationsQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +56,7 @@ func (r *Reader) GetOperations(ctx context.Context, query spanstore.OperationQue
 	return operations, nil
 }
 
-func (r *Reader) buildQueryCondition(query *spanstore.TraceQueryParameters) (string, bool) {
+func (w *Writer) buildQueryCondition(query *spanstore.TraceQueryParameters) (string, bool) {
 	var conditions []string
 	if query.DurationMax != 0 || query.DurationMin != 0 {
 		max := query.DurationMax.Microseconds()
@@ -88,7 +85,7 @@ func (r *Reader) buildQueryCondition(query *spanstore.TraceQueryParameters) (str
 		}
 
 		tagsQuery := fmt.Sprintf("SELECT column FROM table_columns(traces) where column IN ( %s )", strings.Join(tags,","))
-		tagRows, _ := r.questDB.Query(tagsQuery)
+		tagRows, _ := w.questDB.Query(tagsQuery)
 
 		if tagRows.Count() == 0 {
 			// No results, so we return false indicating premature results will be empty
@@ -102,13 +99,13 @@ func (r *Reader) buildQueryCondition(query *spanstore.TraceQueryParameters) (str
 	return strings.Join(conditions, " AND "), true
 }
 
-func (r *Reader) findTraceIds(query *spanstore.TraceQueryParameters) ([]string, error) {
-	condition, hasResults := r.buildQueryCondition(query)
+func (w *Writer) findTraceIds(query *spanstore.TraceQueryParameters) ([]string, error) {
+	condition, hasResults := w.buildQueryCondition(query)
 	if !hasResults {
 		return []string{}, nil
 	}
 	selectQuery := fmt.Sprintf("SELECT DISTINCT trace_id FROM traces WHERE %s", condition)
-	rows, err := r.questDB.Query(selectQuery)
+	rows, err := w.questDB.Query(selectQuery)
 	if err != nil {
 		return []string{}, err
 	}
@@ -123,8 +120,8 @@ func (r *Reader) findTraceIds(query *spanstore.TraceQueryParameters) ([]string, 
 	return ids, nil
 }
 
-func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	traceIds, err := r.findTraceIds(query)
+func (w *Writer) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	traceIds, err := w.findTraceIds(query)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +135,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 	}
 
 	selectQuery := fmt.Sprintf("SELECT  trace_id, span FROM traces WHERE trace_id IN ( %s )", strings.Join(traceIds, ","))
-	rows, err := r.questDB.Query(selectQuery)
+	rows, err := w.questDB.Query(selectQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +161,8 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 	return traces, nil
 }
 
-func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	traceIdsStr, err := r.findTraceIds(query)
+func (w *Writer) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	traceIdsStr, err := w.findTraceIds(query)
 	if err != nil {
 		return []model.TraceID{}, err
 	}
