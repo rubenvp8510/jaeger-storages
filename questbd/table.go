@@ -103,14 +103,10 @@ func (t *Table) updateColumns(columns [] string) error {
 }
 
 func (t *Table) getLatest() *time.Time {
-	rows, err := t.questDB.Query(fmt.Sprintf("select start_time from %s order by start_time desc limit 1", t.name))
-	if err != nil {
-		println(err)
-	}
+	rows, _ := t.questDB.Query(fmt.Sprintf("select start_time from %s order by start_time desc limit 1", t.name))
 	if rows.Next() {
 		row := rows.Get()
 		t, _ := time.Parse("2006-01-02T15:04:05.999Z", fmt.Sprintf("%v", row[0]))
-		println(t.String())
 		return &t
 	}
 	return nil
@@ -118,7 +114,7 @@ func (t *Table) getLatest() *time.Time {
 
 func (t *Table) Create(designated bool) error {
 	const traceTable = "CREATE TABLE %s ( " +
-		"trace_id       string," +
+		"trace_id       symbol index," +
 		"span_id        long," +
 		"parent_id      long," +
 		"operation_name string," +
@@ -280,7 +276,6 @@ func (t *Table) CreateIfNotExist(designated bool) error {
 func (t *Table) InsertFrom(table string) error {
 	const transferQuery = "INSERT INTO %s SELECT * FROM (%s ORDER BY start_time)"
 	query := fmt.Sprintf(transferQuery, t.name, table)
-	println(query)
 	_, err := t.questDB.Exec(query)
 	return err
 }

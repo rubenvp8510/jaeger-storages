@@ -58,3 +58,6 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, nil
 }
+func (f *Factory) Close() error {
+	return nil
+}

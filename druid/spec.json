@@ -30,6 +30,7 @@
     },
     "dimensionsSpec": {
       "dimensions": [
+        { "name" : "traceId", "type" : "string" }
       ]
     },
     "metricsSpec": [

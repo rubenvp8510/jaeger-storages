@@ -31,6 +31,12 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.Builder = &f.options.Config
 }
 
+func (f *Factory) InitFromOptions(o Options) {
+	f.options = o
+	f.Builder = &f.options.Config
+}
+
+
 
 func (f *Factory) Initialize(metricsFactory metrics.Factory, zapLogger *zap.Logger) error {
 	p, err := f.NewProducer()
@@ -52,3 +58,8 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, nil
 }
+
+func (f *Factory) Close() error {
+	return nil
+}
+

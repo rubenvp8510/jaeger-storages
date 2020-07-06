@@ -137,6 +137,28 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	auth.AddFlags(configPrefix, flagSet)
 }
 
+func DefaultOptions()Options  {
+	authenticationOptions := auth.AuthenticationConfig{
+		Authentication:"none",
+	}
+	requiredAcks,_ := getRequiredAcks(defaultRequiredAcks)
+	compression,_ := getCompressionMode(defaultCompression)
+	return Options{
+		Config:producer.Configuration{
+			Brokers:[]string{defaultBroker},
+			RequiredAcks:requiredAcks,
+			Compression:compression,
+			CompressionLevel:defaultCompressionLevel,
+			BatchLinger:defaultBatchLinger,
+			BatchMaxMessages:defaultBatchMaxMessages,
+			BatchSize:defaultBatchSize,
+			AuthenticationConfig: authenticationOptions,
+		},
+		Topic:defaultTopic,
+	}
+}
+
+
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	authenticationOptions := auth.AuthenticationConfig{}

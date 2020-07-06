@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // Result types
@@ -48,7 +49,9 @@ func (q *QuestDBRest) connect() error {
 }
 
 func NewQuestDBRest(host string) (*QuestDBRest, error) {
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout:time.Duration(60*time.Second),
+	}
 	baseUrl, err := url.Parse(host)
 	if err != nil {
 		return nil, err
@@ -88,16 +91,16 @@ func (q *QuestDBRest) restRequest(query string) (*questDBResponse, error) {
 	return &results, nil
 }
 
-func (q *QuestDBRest) Query(query string) (*Row, error) {
+func (q *QuestDBRest) Query(query string) (Row, error) {
 	results, err := q.restRequest(query)
 	if err != nil {
-		return nil, err
+		return Row{}, err
 	}
 	columns := make([]string, len(results.Columns))
 	for i, column := range results.Columns {
 		columns[i] = column.Name
 	}
-	return &Row{
+	return Row{
 		Dataset: results.Dataset,
 		Columns: columns,
 		cursor:-1,
@@ -105,13 +108,13 @@ func (q *QuestDBRest) Query(query string) (*Row, error) {
 	}, nil
 }
 
-func (q *QuestDBRest) Exec(query string) (*Results, error) {
+func (q *QuestDBRest) Exec(query string) (Results, error) {
 	results, err := q.restRequest(query)
 	if err != nil {
-		return nil, err
+		return Results{}, err
 	}
 
-	return &Results{
+	return Results{
 		Count: results.Count,
 		Query: results.Query,
 	}, nil

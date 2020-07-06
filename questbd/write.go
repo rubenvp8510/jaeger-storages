@@ -39,20 +39,16 @@ func (w *Writer) sortAndTransfer() {
 	w.blocksMtx.Lock()
 	nextBlock := int(time.Now().UnixNano() / periodPerBlock)
 
-	println(w.nextBlock)
 	partition = w.partitions[w.nextBlock]
-	fmt.Println("Partition old new:", partition)
 
 	delete(w.partitions, w.nextBlock)
 	w.nextBlock = nextBlock
-	fmt.Println("Partition new:", nextBlock)
 
 	if _, ok := w.partitions[nextBlock]; !ok {
 		table := &Table{
 			name:    fmt.Sprintf("partition_%d", nextBlock),
 			questDB: w.questDB,
 		}
-		println("creating")
 		table.CreateIfNotExist(false)
 		w.partitions[nextBlock] = table
 
@@ -103,7 +99,6 @@ func (w *Writer) loop() {
 func (w *Writer) start() {
 	w.mainTable.CreateIfNotExist(false)
 	blockIndex := int(time.Now().UnixNano() / periodPerBlock)
-	println("Partition: ", blockIndex)
 	w.partitions = make(map[int]*Table)
 	w.partitions[blockIndex] = &Table{
 		name:    fmt.Sprintf("partition_%d", blockIndex),
@@ -120,7 +115,7 @@ func (w *Writer) start() {
 	w.nextBlock = blockIndex
 	w.minWritableTime = nil
 	w.close = make(chan struct{})
-	go w.loop()
+	//go w.loop()
 
 }
 

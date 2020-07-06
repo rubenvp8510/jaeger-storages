@@ -22,6 +22,7 @@ func NewReader(host string) (*Reader, error) {
 	client := &godruid.Client{
 		Url: host,
 	}
+	client.Debug = true
 	return &Reader{
 		client: client,
 	}, nil
@@ -81,6 +82,7 @@ func (r *Reader) topNQueryBuilder(query *spanstore.TraceQueryParameters) *godrui
 func (r *Reader) getTraceIds(traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
 	query := r.topNQueryBuilder(traceQuery)
 	err := r.client.Query(query)
+	println(r.client.LastRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -192,19 +194,24 @@ func (r *Reader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQuer
 		return nil, err
 	}
 
-	traceFilters := make([]*godruid.Filter, 0)
-	for _, trace := range traceIds {
-		traceFilters = append(traceFilters, godruid.FilterSelector("traceId", trace))
+	if len(traceIds) == 0 {
+		return nil, ErrTraceNotFound
+	}
+
+	traceFilters := &godruid.Filter{
+		Type:"in",
+		Dimension:"traceId",
+		Values:traceIds,
 	}
 
 	query := &godruid.QueryScan{
 		DataSource: "jaeger-spans",
 		Intervals:  []string{"-146136543-09-08T08:23:32.096Z/146140482-04-24T15:36:27.903Z"},
 		Columns:    []string{"span"},
-		Filter:     godruid.FilterOr(traceFilters...),
+		Filter:     traceFilters,
 	}
-
 	err = r.client.Query(query)
+
 	if err != nil {
 		return nil, err
 	}
