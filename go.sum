@@ -372,6 +372,8 @@ github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rs/cors v1.7.0/go.mod h1:gFx+x8UowdsKA9AchylcLynDq+nNFfI8FkUZdN/jGCU=
 github.com/rubenvp8510/godruid v0.0.0-20200630151123-c201350b7085 h1:tnyg0i1c7quu55mOQZE3W3xzjWqldNCTmlVBF7Zg/DU=
 github.com/rubenvp8510/godruid v0.0.0-20200630151123-c201350b7085/go.mod h1:jREKZdsKQ5Et7CuGSWTGQxRFVYX/umi9L1yyc8LW/IU=
+github.com/rubenvp8510/godruid v0.0.0-20200706195505-157c09891284 h1:xqjeAbCd2vdzPRz8w7Zwi3eYAFJw/65aW2awAJgOmJA=
+github.com/rubenvp8510/godruid v0.0.0-20200706195505-157c09891284/go.mod h1:jREKZdsKQ5Et7CuGSWTGQxRFVYX/umi9L1yyc8LW/IU=
 github.com/russross/blackfriday v1.5.2/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR/rfWxYHBV53g=
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
